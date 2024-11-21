@@ -50,12 +50,12 @@ cat domains_<date-time>.json | jq -c 'map({name: .Name, ownerId: .Owner.OnTeam.i
 done
 ```
 
-5. Create systems into services, preserve name, preserve owner, preserve description, preserve link to domain (now a system)
+5. Create systems into services, preserve name, preserve owner, preserve description, preserve link to domain (now a system), output the service ids to a file to use to assign tags and properties
 
 ```
 cat systems_<date-time>.json| jq -c 'map({name: .Name, owner: {id: .Owner.OnTeam.id}, description: .Description, parent: {alias: .Parent.Aliases[0]}}) | .[]' | while read -r item; do
   echo "$item" | yq eval | opslevel create service
-done
+done > service_ids_output.txt
 ```
 
 Optionally, you can add additional data if needed. For example, adding prefix "SEARCH-" to the name.
@@ -64,4 +64,45 @@ Optionally, you can add additional data if needed. For example, adding prefix "S
 cat systems_<date-time>.json| jq -c 'map({name: ("SEARCH-" + .Name), owner: {id: .Owner.OnTeam.id}, description: .Description, parent: {alias: .Parent.Aliases[0]}}) | .[]' | while read -r item; do
   echo "$item" | yq eval | opslevel create service
 done
+```
+
+6. Assign tags to services using the service ids from service_ids_output.txt. In this example, we are assigning the tag "type" with the value "Sub-Feature". 
+
+```
+cat service_ids_output.txt | while read -r item; do
+if [ -n "$item" ]; then
+item=$(echo "$item" | tr -d '"' | xargs)
+opslevel create tag --type=Service $item type sub-feature1
+fi
+done
+```
+
+7. You can query back services matching the tag key and value with the opslevel-cli. The example below returns the list of services by name.
+
+```
+opslevel list services -o json | jq '.[] | if .tags.Nodes[] | .key=="type" and .value=="sub-feature1" then .name else empty end'
+```
+
+8. Assign properties to services using the service ids from service_ids_output.txt. In this example, we are assigning the property "type" with the value "Sub-Feature".
+
+```
+cat service_ids_output.txt | while read -r item; do
+if [ -n "$item" ]; then
+item=$(echo "$item" | tr -d '"' | xargs)
+cat << EOF | opslevel assign property -f -
+owner:
+  id: $item
+definition:
+  alias: "type"
+value: "\"Sub-Feature\""
+runValidation: false
+EOF
+fi
+done
+```
+
+9. You can query back services matching the property key and value with the opslevel-cli. The example below returns the list of services by name.
+
+```
+opslevel list services --properties -o json | jq '.[] | if .Properties.Nodes[] | (.Definition.aliases[0]=="type" and .Value =="\"Sub-Feature\"") then .name else empty end'
 ```

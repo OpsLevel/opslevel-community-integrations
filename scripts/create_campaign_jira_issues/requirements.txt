@@ -1,4 +1,4 @@
 python-dotenv == 1.0.0
-requests == 2.31
+requests == 2.32.0
 rich == 13.6
 typer == 0.0.13
